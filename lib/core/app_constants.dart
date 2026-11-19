@@ -26,4 +26,15 @@ abstract final class AppConstants {
   static const brokerConnectingLabel = 'Connecting';
   static const brokerDisconnectedLabel = 'Disconnected';
   static const deviceOfflineLabel = 'Device offline';
+  static const applianceEditNameLabel = 'Edit name';
+  static const applianceRenameTitle = 'Appliance name';
+  static const applianceIconLabel = 'Change icon';
+  static const protectedLabel = 'Protected (never auto-off)';
+  static const relayUnknownLabel = 'Waiting for ESP32 state';
+  static const brokerUnavailableLabel = 'Broker is not connected';
+  static const deviceStatusUnknownLabel = 'Waiting for ESP32 online status';
+  static const relayPendingLabel = 'Waiting for confirmation';
+  static const relayNoResponseLabel = 'No response. You can try again.';
+  static const relayConfirmedLabel = 'Last confirmed by ESP32';
+  static const relayCardRetryLabel = 'Retry relay command';
 }

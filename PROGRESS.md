@@ -21,9 +21,19 @@
 - Added Android `INTERNET` and `ACCESS_NETWORK_STATE` permissions.
 - Added `tools/esp32_simulator.py`, pinned `paho-mqtt` 2.1.0 in `tools/requirements.txt`, and documented Windows Mosquitto/firewall/Wi-Fi setup plus simulator and manual publish/subscribe steps in `README.md`.
 - Verified: `dart format lib test`, `flutter analyze`, `flutter test`, `flutter build apk --debug`, `python -m py_compile tools\\esp32_simulator.py`, and simulator `--help` all pass. Installed/tested the simulator against `paho-mqtt` 2.1.0.
-- Live Mosquitto/phone testing remains outstanding because no broker or phone is connected in this environment. No Phase 2 relay-control UI was implemented.
+- Live Mosquitto/phone testing remains outstanding; complete it when a broker and phone are available.
+
+## Phase 2 — Confirmed relay control
+
+- Added six relay cards with confirmed state labels, confirmation-gated switches, pending spinners, 3-second no-response feedback, and retry support.
+- Relay switches are not shown until an ESP32 `.../state` value is received. Existing confirmed values are not changed optimistically when commands are sent. Controls are disabled unless the broker is connected, the device has reported online, and that relay has a confirmed state.
+- Added persistent appliance names, six selectable built-in icons, and a per-appliance "Protected (never auto-off)" preference using `shared_preferences` 2.5.6. Protection is stored as a future preference only; no automatic switching behavior was added.
+- Reused the existing `MqttService.publishTestRelayCommand` path without changing `MqttService` behavior or MQTT topic strings.
+- Updated `README.md` with simulator and `mosquitto_pub`/`mosquitto_sub` relay-control test steps.
+- Verified: `dart format lib test`, `flutter analyze`, `flutter test --reporter expanded`, `flutter build apk --debug`, and `git diff --check` pass. Tests cover unknown relay state, command confirmation, timeout/late confirmation, and appliance name/icon/protection persistence.
+- The Phase 1 live Mosquitto and physical-phone test is still pending. Phase 2 has not yet been verified against a live broker or phone.
 
 ## Not started
 
-- Phase 2 confirmed relay control cards, naming, and protected-device settings.
-- Phases 3–5: monitor/history, NILM insights, and alerts.
+- Phase 3 live monitor, chart, stored power history, and estimated bill.
+- Phases 4–5: NILM insights and alerts.

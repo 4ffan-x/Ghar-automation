@@ -7,12 +7,15 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'app.dart';
 import 'data/mqtt_providers.dart';
 import 'data/mqtt_service.dart';
+import 'data/appliance_providers.dart';
+import 'data/repositories/appliance_repository.dart';
 import 'data/repositories/settings_repository.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final preferences = await SharedPreferences.getInstance();
   final settingsRepository = SettingsRepository(preferences);
+  final applianceRepository = ApplianceRepository(preferences);
   final settings = settingsRepository.load();
   final mqttService = MqttService(
     settingsRepository: settingsRepository,
@@ -21,7 +24,10 @@ Future<void> main() async {
 
   runApp(
     ProviderScope(
-      overrides: [mqttServiceProvider.overrideWithValue(mqttService)],
+      overrides: [
+        mqttServiceProvider.overrideWithValue(mqttService),
+        applianceRepositoryProvider.overrideWithValue(applianceRepository),
+      ],
       child: const GharApp(),
     ),
   );

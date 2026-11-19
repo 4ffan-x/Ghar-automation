@@ -160,6 +160,48 @@ For example:
 C:\ghar-simulator-venv\Scripts\python.exe tools\esp32_simulator.py --host 127.0.0.1 --variable-fridge
 ```
 
+### Test Phase 2 relay cards without an ESP32
+
+With Mosquitto running and the phone app connected, start the simulator as
+above. Open **Control**. The simulator publishes retained initial state and
+`online` status, so relay cards become ready. Tap a switch: the card shows a
+pending spinner and keeps its old confirmed state until the simulator publishes
+the new retained `ghar/relay/N/state` confirmation. The simulator responds to
+commands after a short delay.
+
+To test the app against Mosquitto without running the simulator, use separate
+PowerShell windows:
+
+1. Subscribe to commands sent from the app:
+
+   ```powershell
+   & 'C:\Program Files\mosquitto\mosquitto_sub.exe' -h 127.0.0.1 -t 'ghar/relay/+/set' -v
+   ```
+
+2. Publish device online and initial relay 1 state (repeat for any relay you
+   want to control):
+
+   ```powershell
+   & 'C:\Program Files\mosquitto\mosquitto_pub.exe' -h 127.0.0.1 -t 'ghar/status' -m online -r
+   & 'C:\Program Files\mosquitto\mosquitto_pub.exe' -h 127.0.0.1 -t 'ghar/relay/1/state' -m OFF -r
+   ```
+
+3. In **Control**, switch Relay 1 on. `mosquitto_sub` should show the `ON`
+   command; the displayed state must remain `OFF` and the spinner should
+   appear. The app must not update to `ON` until you publish the confirmation:
+
+   ```powershell
+   & 'C:\Program Files\mosquitto\mosquitto_pub.exe' -h 127.0.0.1 -t 'ghar/relay/1/state' -m ON -r
+   ```
+
+4. To check the timeout, switch it off and do not publish an OFF confirmation.
+   After about 3 seconds, the card should show **No response** and allow retry.
+   To test the offline guard, publish `offline` to `ghar/status`; relay
+   switches should be disabled.
+
+As in the previous test, use the PC's Wi-Fi IPv4 address in the phone app;
+`127.0.0.1` is only for commands run on the PC.
+
 ## MQTT package
 
 The app currently uses `mqtt_client` 10.14.0. Its connection, subscription,
