@@ -12,7 +12,18 @@
 - `flutter build apk --debug` passes. APK: `build/app/outputs/flutter-apk/app-debug.apk`.
 - A physical phone is intentionally not connected yet; final device debugging remains outstanding.
 
+## Phase 1 — MQTT connection
+
+- Added broker settings for host, port, optional username/password, TLS, and topic prefix, persisted locally with `shared_preferences` 2.5.6.
+- Added `MqttService` using `mqtt_client` 10.14.0. It uses a unique app client ID, a 25-second keep-alive, subscriptions for relay state/power/gas/device status, and reconnect attempts with exponential backoff capped at 30 seconds.
+- Added defensive message parsing and typed streams for confirmed relay states, power readings, gas status, broker connection, and device availability. Invalid messages are logged and ignored.
+- The broker status chip appears in the shared app bar on every tab. Settings has test ON/OFF command buttons and shows relay state only after a `.../state` message arrives; commands do not change the displayed confirmation.
+- Added Android `INTERNET` and `ACCESS_NETWORK_STATE` permissions.
+- Added `tools/esp32_simulator.py`, pinned `paho-mqtt` 2.1.0 in `tools/requirements.txt`, and documented Windows Mosquitto/firewall/Wi-Fi setup plus simulator and manual publish/subscribe steps in `README.md`.
+- Verified: `dart format lib test`, `flutter analyze`, `flutter test`, `flutter build apk --debug`, `python -m py_compile tools\\esp32_simulator.py`, and simulator `--help` all pass. Installed/tested the simulator against `paho-mqtt` 2.1.0.
+- Live Mosquitto/phone testing remains outstanding because no broker or phone is connected in this environment. No Phase 2 relay-control UI was implemented.
+
 ## Not started
 
-- Phase 1 MQTT connection and broker settings.
-- Relay control, live monitoring/history, NILM, and alerts.
+- Phase 2 confirmed relay control cards, naming, and protected-device settings.
+- Phases 3–5: monitor/history, NILM insights, and alerts.

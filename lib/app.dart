@@ -1,6 +1,7 @@
 import 'package:material_ui/material_ui.dart';
 
 import 'core/app_constants.dart';
+import 'data/mqtt_status_chip.dart';
 import 'features/control/control_screen.dart';
 import 'features/insights/insights_screen.dart';
 import 'features/monitor/monitor_screen.dart';
@@ -74,7 +75,10 @@ class _NavigationShellState extends State<_NavigationShell> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text(AppConstants.tabLabels[_selectedIndex])),
+      appBar: AppBar(
+        title: Text(AppConstants.tabLabels[_selectedIndex]),
+        actions: const [MqttStatusChip(), SizedBox(width: 8)],
+      ),
       body: IndexedStack(index: _selectedIndex, children: _screens),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _selectedIndex,

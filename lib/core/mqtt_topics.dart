@@ -14,4 +14,10 @@ class MqttTopics {
   String get gas => '$prefix/gas';
 
   String get status => '$prefix/status';
+
+  int? relayForStateTopic(String topic) {
+    final match = RegExp('^${RegExp.escape(prefix)}/relay/([1-6])/state\$')
+        .firstMatch(topic);
+    return match == null ? null : int.parse(match.group(1)!);
+  }
 }
