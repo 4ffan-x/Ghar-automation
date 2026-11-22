@@ -33,7 +33,19 @@
 - Verified: `dart format lib test`, `flutter analyze`, `flutter test --reporter expanded`, `flutter build apk --debug`, and `git diff --check` pass. Tests cover unknown relay state, command confirmation, timeout/late confirmation, and appliance name/icon/protection persistence.
 - The Phase 1 live Mosquitto and physical-phone test is still pending. Phase 2 has not yet been verified against a live broker or phone.
 
+## Phase 3 — Monitor, saved history, and bill estimate
+
+- Added live power, voltage, current, and cumulative-kWh tiles, plus a `fl_chart` graph showing saved samples from the last 30 minutes.
+- Added local SQLite storage for chart samples (at most one per 10 seconds, with raw samples older than 30 days pruned), daily energy summaries, and a cumulative-meter cursor. Energy deltas are recorded on every received reading; a meter reset does not create negative usage.
+- Added a persisted per-kWh tariff setting and today/month energy and linear bill estimates. Slabs, taxes, and fixed charges are not included.
+- The first cumulative meter reading is used only as a baseline, so consumption before the app records its first reading is not estimated. Daily energy summaries remain stored; chart samples are limited to the last 30 days and the Monitor chart displays the last 30 minutes.
+- Updated `README.md` with simulator steps to exercise the Monitor, history across app restarts, and a tariff estimate, plus a `mosquitto_pub` sequence for testing without the simulator.
+- Packages used: `sqflite` 2.4.6, `fl_chart` 1.3.1, and test-only `sqflite_common_ffi` 2.4.7. MQTT topic strings and `MqttService` behavior were not changed.
+- Verified: `dart format lib test`, `flutter analyze`, `flutter test --reporter expanded` (15 tests), `flutter build apk --debug`, and `git diff --check` pass. Android debug APK: `build/app/outputs/flutter-apk/app-debug.apk`.
+- Live Mosquitto and physical-phone testing remain outstanding.
+
 ## Not started
 
-- Phase 3 live monitor, chart, stored power history, and estimated bill.
-- Phases 4–5: NILM insights and alerts.
+- Phase 4: NILM engine and Insights screen.
+- Phase 5: alerts.
+- Optional Phase 6: timers and hybrid broker.

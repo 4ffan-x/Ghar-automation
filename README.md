@@ -202,6 +202,53 @@ PowerShell windows:
 As in the previous test, use the PC's Wi-Fi IPv4 address in the phone app;
 `127.0.0.1` is only for commands run on the PC.
 
+## Test Phase 3 Monitor, history, and bill estimate
+
+The Monitor screen uses the existing Mosquitto broker and simulator setup
+above. Start the broker, then run the simulator in a separate PowerShell
+window:
+
+```powershell
+C:\ghar-simulator-venv\Scripts\python.exe tools\esp32_simulator.py --host 127.0.0.1
+```
+
+In the Android app, connect to the broker using the PC's Wi-Fi IPv4 address,
+then:
+
+1. In **Settings**, enter the per-unit tariff and tap **Save tariff**. For a
+   short demo, a temporarily high test rate (for example, Rs 1000/kWh) makes
+   the estimate easier to see; restore the actual rate afterwards.
+2. In **Control**, switch Relay 1 on. The simulator confirms the change and
+   models Relay 1 as a 2000 W load, so energy accumulates faster than at idle.
+3. Open **Monitor**. Voltage, current, power, and cumulative kWh update as
+   readings arrive. After at least 10 seconds, the chart should contain saved
+   samples (the app stores at most one sample per 10 seconds).
+4. Leave it running for a minute or two to see today's/month's kWh and the
+   corresponding tariff-based estimate increase. The simulator's cumulative
+   meter begins at zero; the app uses the first reading it receives only as a
+   baseline, so consumption before that reading is not included.
+5. Stop and reopen the app while leaving Mosquitto and the simulator running.
+   The recent chart history and energy totals should still be present. The
+   chart shows the last 30 minutes; older raw samples are pruned, while daily
+   energy summaries remain stored locally.
+
+To test without the simulator, leave Mosquitto and the app connected, stop the
+simulator, and publish readings from a PowerShell window on the PC. The first
+reading establishes a cumulative-meter baseline; publish the next reading at
+least 10 seconds later to add a chart sample and energy delta:
+
+```powershell
+& 'C:\Program Files\mosquitto\mosquitto_pub.exe' -h 127.0.0.1 -t 'ghar/power' -m '{"v":230.0,"a":1.0,"w":230.0,"kwh":10.000}'
+# Wait at least 10 seconds.
+& 'C:\Program Files\mosquitto\mosquitto_pub.exe' -h 127.0.0.1 -t 'ghar/power' -m '{"v":231.0,"a":2.0,"w":462.0,"kwh":10.500}'
+```
+
+The Monitor should show the newer live values and 0.500 kWh added to today's
+and this month's energy, multiplied by the saved tariff. Publish another
+reading with a higher `kwh` value after 10 seconds to add another saved chart
+sample. The estimates use a single per-kWh rate; utility slabs, taxes, and
+fixed charges are not included.
+
 ## MQTT package
 
 The app currently uses `mqtt_client` 10.14.0. Its connection, subscription,

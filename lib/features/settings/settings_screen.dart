@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../../core/app_constants.dart';
+import '../../data/monitor_providers.dart';
 import '../../data/mqtt_providers.dart';
 import '../../data/mqtt_service.dart';
 import '../../domain/models/mqtt_settings.dart';
@@ -20,9 +21,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   late final TextEditingController _usernameController;
   late final TextEditingController _passwordController;
   late final TextEditingController _topicPrefixController;
+  late final TextEditingController _tariffController;
   late bool _useTls;
   bool _saving = false;
   String? _message;
+  String? _tariffMessage;
 
   @override
   void initState() {
@@ -33,6 +36,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     _usernameController = TextEditingController(text: settings.username);
     _passwordController = TextEditingController(text: settings.password);
     _topicPrefixController = TextEditingController(text: settings.topicPrefix);
+    _tariffController = TextEditingController(
+      text: ref.read(settingsRepositoryProvider).loadEnergyTariff().toString(),
+    );
     _useTls = settings.useTls;
   }
 
@@ -43,6 +49,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     _usernameController.dispose();
     _passwordController.dispose();
     _topicPrefixController.dispose();
+    _tariffController.dispose();
     super.dispose();
   }
 
@@ -192,6 +199,31 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         ),
         const SizedBox(height: 24),
         Text(
+          AppConstants.energyTariffTitle,
+          style: Theme.of(context).textTheme.titleLarge,
+        ),
+        const SizedBox(height: 8),
+        TextFormField(
+          key: const Key('energy-tariff-field'),
+          controller: _tariffController,
+          decoration: const InputDecoration(
+            labelText: AppConstants.energyTariffLabel,
+            border: OutlineInputBorder(),
+          ),
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+        ),
+        if (_tariffMessage != null) ...[
+          const SizedBox(height: 8),
+          Text(_tariffMessage!),
+        ],
+        const SizedBox(height: 8),
+        OutlinedButton.icon(
+          onPressed: _saveTariff,
+          icon: const Icon(Icons.currency_rupee),
+          label: const Text(AppConstants.energyTariffSaveLabel),
+        ),
+        const SizedBox(height: 24),
+        Text(
           AppConstants.mqttTestTitle,
           style: Theme.of(context).textTheme.titleLarge,
         ),
@@ -305,6 +337,30 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     } on Exception catch (error) {
       if (mounted) {
         setState(() => _message = error.toString());
+      }
+    }
+  }
+
+  Future<void> _saveTariff() async {
+    final tariff = double.tryParse(_tariffController.text.trim());
+    if (tariff == null || !tariff.isFinite || tariff < 0) {
+      setState(() {
+        _tariffMessage = 'Enter a valid non-negative tariff.';
+      });
+      return;
+    }
+
+    try {
+      await ref.read(settingsRepositoryProvider).saveEnergyTariff(tariff);
+      ref.invalidate(energyTariffProvider);
+      if (mounted) {
+        setState(() {
+          _tariffMessage = 'Tariff saved.';
+        });
+      }
+    } on Exception catch (error) {
+      if (mounted) {
+        setState(() => _tariffMessage = 'Could not save tariff: $error');
       }
     }
   }

@@ -1,17 +1,33 @@
+import 'dart:async';
+
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
 import 'core/app_constants.dart';
+import 'data/monitor_providers.dart';
+import 'data/mqtt_providers.dart';
+import 'data/repositories/power_history_repository.dart';
+import 'domain/models/mqtt_readings.dart';
 import 'data/mqtt_status_chip.dart';
 import 'features/control/control_screen.dart';
 import 'features/insights/insights_screen.dart';
 import 'features/monitor/monitor_screen.dart';
 import 'features/settings/settings_screen.dart';
 
-class GharApp extends StatelessWidget {
+class GharApp extends ConsumerWidget {
   const GharApp({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final historyRepository = ref.watch(powerHistoryRepositoryProvider);
+    ref.listen(mqttPowerProvider, (previous, next) {
+      next.whenData((reading) {
+        if (reading != null) {
+          unawaited(_savePowerReading(ref, historyRepository, reading));
+        }
+      });
+    });
+
     return MaterialApp(
       title: AppConstants.appName,
       theme: _buildTheme(Brightness.light),
@@ -19,6 +35,22 @@ class GharApp extends StatelessWidget {
       themeMode: ThemeMode.system,
       home: const _NavigationShell(),
     );
+  }
+
+  Future<void> _savePowerReading(
+    WidgetRef ref,
+    PowerHistoryRepository repository,
+    PowerReading reading,
+  ) async {
+    try {
+      final savedSample = await repository.recordReading(reading);
+      if (savedSample) {
+        ref.invalidate(recentPowerHistoryProvider);
+      }
+      ref.invalidate(energyTotalsProvider);
+    } on Exception catch (error) {
+      debugPrint('Could not save incoming power reading: $error');
+    }
   }
 
   ThemeData _buildTheme(Brightness brightness) {

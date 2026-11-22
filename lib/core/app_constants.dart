@@ -37,4 +37,17 @@ abstract final class AppConstants {
   static const relayNoResponseLabel = 'No response. You can try again.';
   static const relayConfirmedLabel = 'Last confirmed by ESP32';
   static const relayCardRetryLabel = 'Retry relay command';
+  static const energyTariffTitle = 'Energy tariff';
+  static const energyTariffLabel = 'Price per unit (Rs/kWh)';
+  static const energyTariffSaveLabel = 'Save tariff';
+  static const monitorWaitingForPower = 'Waiting for power readings';
+  static const monitorChartTitle = 'Power history · last 30 minutes';
+  static const monitorNoHistory = 'No saved power samples yet';
+  static const monitorHistoryLabel = 'Saved samples in chart';
+  static const monitorTodayEnergy = 'Today';
+  static const monitorMonthEnergy = 'This month';
+  static const monitorTodayBill = 'Estimated today bill';
+  static const monitorMonthBill = 'Estimated month bill';
+  static const monitorHistoryError = 'Could not load power history';
+  static const monitorEnergyError = 'Could not load energy summary';
 }

@@ -13,6 +13,7 @@ class SettingsRepository {
   static const _passwordKey = 'mqtt.password';
   static const _useTlsKey = 'mqtt.useTls';
   static const _topicPrefixKey = 'mqtt.topicPrefix';
+  static const _energyTariffKey = 'energy.tariffPerKwh';
 
   MqttSettings load() {
     return MqttSettings(
@@ -32,5 +33,18 @@ class SettingsRepository {
     await _preferences.setString(_passwordKey, settings.password);
     await _preferences.setBool(_useTlsKey, settings.useTls);
     await _preferences.setString(_topicPrefixKey, settings.topicPrefix.trim());
+  }
+
+  double loadEnergyTariff() => _preferences.getDouble(_energyTariffKey) ?? 0;
+
+  Future<void> saveEnergyTariff(double tariff) async {
+    if (!tariff.isFinite || tariff < 0) {
+      throw ArgumentError.value(
+        tariff,
+        'tariff',
+        'Must be a finite value >= 0.',
+      );
+    }
+    await _preferences.setDouble(_energyTariffKey, tariff);
   }
 }

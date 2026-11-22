@@ -1,15 +1,23 @@
 import 'dart:async';
 
+import 'package:fl_chart/fl_chart.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghar_app/app.dart';
 import 'package:ghar_app/data/appliance_providers.dart';
+import 'package:ghar_app/data/db.dart';
+import 'package:ghar_app/data/monitor_providers.dart';
 import 'package:ghar_app/data/mqtt_providers.dart';
 import 'package:ghar_app/data/mqtt_service.dart';
 import 'package:ghar_app/data/repositories/appliance_repository.dart';
+import 'package:ghar_app/data/repositories/power_history_repository.dart';
+import 'package:ghar_app/data/repositories/settings_repository.dart';
+import 'package:ghar_app/domain/models/energy_totals.dart';
 import 'package:ghar_app/domain/models/mqtt_readings.dart';
+import 'package:ghar_app/features/monitor/monitor_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 class _RecordingMqttService extends MqttService {
   final List<(int, bool)> commands = [];
@@ -26,28 +34,50 @@ class _RecordingMqttService extends MqttService {
 void main() {
   late MqttService mqttService;
   late ApplianceRepository applianceRepository;
+  late SettingsRepository settingsRepository;
+  late Database powerDatabase;
+  late PowerHistoryRepository powerHistoryRepository;
 
   setUp(() async {
     SharedPreferences.setMockInitialValues({});
-    applianceRepository = ApplianceRepository(
-      await SharedPreferences.getInstance(),
+    final preferences = await SharedPreferences.getInstance();
+    applianceRepository = ApplianceRepository(preferences);
+    settingsRepository = SettingsRepository(preferences);
+    powerDatabase = await databaseFactoryFfi.openDatabase(
+      inMemoryDatabasePath,
+      options: OpenDatabaseOptions(
+        version: 1,
+        onCreate: createPowerHistorySchema,
+      ),
     );
-    mqttService = MqttService();
+    powerHistoryRepository = PowerHistoryRepository(powerDatabase);
+    mqttService = MqttService(settingsRepository: settingsRepository);
   });
 
   tearDown(() async {
     await mqttService.dispose();
+    await powerDatabase.close();
   });
+
+  setUpAll(sqfliteFfiInit);
+
+  commonOverrides(MqttService service) => [
+    mqttServiceProvider.overrideWithValue(service),
+    applianceRepositoryProvider.overrideWithValue(applianceRepository),
+    settingsRepositoryProvider.overrideWithValue(settingsRepository),
+    powerHistoryRepositoryProvider.overrideWithValue(powerHistoryRepository),
+    recentPowerHistoryProvider.overrideWith((ref) async => []),
+    energyTotalsProvider.overrideWith(
+      (ref) async => const EnergyTotals(todayKwh: 0, monthKwh: 0),
+    ),
+  ];
 
   testWidgets('shows all four tabs and opens their placeholder screens', (
     tester,
   ) async {
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [
-          mqttServiceProvider.overrideWithValue(mqttService),
-          applianceRepositoryProvider.overrideWithValue(applianceRepository),
-        ],
+        overrides: commonOverrides(mqttService),
         child: const GharApp(),
       ),
     );
@@ -60,7 +90,7 @@ void main() {
 
     await tester.tap(find.byIcon(Icons.monitor_heart_outlined));
     await tester.pumpAndSettle();
-    expect(find.text('Monitor is coming in a later phase.'), findsOneWidget);
+    expect(find.text('Waiting for power readings'), findsOneWidget);
 
     await tester.tap(find.byIcon(Icons.insights_outlined));
     await tester.pumpAndSettle();
@@ -70,6 +100,9 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('MQTT broker'), findsOneWidget);
     expect(find.text('Broker host or IP address'), findsOneWidget);
+    await tester.drag(find.text('MQTT broker'), const Offset(0, -700));
+    await tester.pumpAndSettle();
+    expect(find.text('Price per unit (Rs/kWh)'), findsOneWidget);
   });
 
   testWidgets('appliance name and protection preference are editable', (
@@ -77,10 +110,7 @@ void main() {
   ) async {
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [
-          mqttServiceProvider.overrideWithValue(mqttService),
-          applianceRepositoryProvider.overrideWithValue(applianceRepository),
-        ],
+        overrides: commonOverrides(mqttService),
         child: const GharApp(),
       ),
     );
@@ -126,8 +156,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
-          mqttServiceProvider.overrideWithValue(service),
-          applianceRepositoryProvider.overrideWithValue(applianceRepository),
+          ...commonOverrides(service),
           mqttConnectionProvider.overrideWith(
             (ref) => Stream.value(BrokerConnectionState.connected),
           ),
@@ -182,8 +211,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
-          mqttServiceProvider.overrideWithValue(service),
-          applianceRepositoryProvider.overrideWithValue(applianceRepository),
+          ...commonOverrides(service),
           mqttConnectionProvider.overrideWith(
             (ref) => Stream.value(BrokerConnectionState.connected),
           ),
@@ -209,5 +237,92 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('No response. You can try again.'), findsNothing);
     await relayStates.close();
+  });
+
+  testWidgets('monitor shows live readings, saved history, and bill estimate', (
+    tester,
+  ) async {
+    final now = DateTime.now();
+    final reading = PowerReading(
+      voltage: 231,
+      current: 2,
+      watts: 462,
+      kilowattHours: 1.5,
+      receivedAt: now,
+    );
+    late List<PowerReading> savedHistory;
+    late EnergyTotals savedTotals;
+    await tester.runAsync(() async {
+      await powerHistoryRepository.recordReading(
+        PowerReading(
+          voltage: 230,
+          current: 1.2,
+          watts: 276,
+          kilowattHours: 1,
+          receivedAt: now.subtract(const Duration(seconds: 2)),
+        ),
+      );
+      await powerHistoryRepository.recordReading(reading);
+      savedHistory = await powerHistoryRepository.getRecentSamples();
+      savedTotals = await powerHistoryRepository.getEnergyTotals();
+    });
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          mqttServiceProvider.overrideWithValue(mqttService),
+          powerHistoryRepositoryProvider.overrideWithValue(
+            powerHistoryRepository,
+          ),
+          energyTariffProvider.overrideWithValue(10),
+          mqttPowerProvider.overrideWith((ref) => Stream.value(reading)),
+          recentPowerHistoryProvider.overrideWith((ref) async => savedHistory),
+          energyTotalsProvider.overrideWith((ref) async => savedTotals),
+        ],
+        child: const MaterialApp(home: Scaffold(body: MonitorScreen())),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('462.0 W'), findsOneWidget);
+    expect(find.text('231.0 V'), findsOneWidget);
+    expect(find.text('2.00 A'), findsOneWidget);
+    expect(find.text('1.50 kWh'), findsOneWidget);
+    expect(find.byType(LineChart), findsOneWidget);
+    await tester.ensureVisible(find.text('Energy and estimated bill'));
+    await tester.pumpAndSettle();
+    expect(find.text('Tariff: Rs 10.00 per kWh'), findsOneWidget);
+    expect(find.text('0.500 kWh'), findsNWidgets(2));
+    expect(find.text('Rs 5.00'), findsNWidgets(2));
+    late EnergyTotals totalsAfterLiveReading;
+    await tester.runAsync(() async {
+      totalsAfterLiveReading = await powerHistoryRepository.getEnergyTotals();
+    });
+    expect(totalsAfterLiveReading.todayKwh, closeTo(0.5, 0.001));
+  });
+
+  testWidgets('energy tariff setting validates and persists', (tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: commonOverrides(mqttService),
+        child: const GharApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byIcon(Icons.settings_outlined));
+    await tester.pumpAndSettle();
+    await tester.drag(find.text('MQTT broker'), const Offset(0, -700));
+    await tester.pumpAndSettle();
+
+    final tariffField = find.byKey(const Key('energy-tariff-field'));
+    await tester.enterText(tariffField, '-1');
+    await tester.tap(find.text('Save tariff'));
+    await tester.pumpAndSettle();
+    expect(find.text('Enter a valid non-negative tariff.'), findsOneWidget);
+
+    await tester.enterText(tariffField, '8.5');
+    await tester.tap(find.text('Save tariff'));
+    await tester.pumpAndSettle();
+    expect(settingsRepository.loadEnergyTariff(), 8.5);
   });
 }
