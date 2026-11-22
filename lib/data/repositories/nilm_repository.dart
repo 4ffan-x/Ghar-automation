@@ -179,6 +179,14 @@ class NilmRepository {
     );
   }
 
+  double? effectiveWattageFor(int relay, {double? manualWattage}) {
+    _ensureInitialized();
+    return _engine.effectiveWattageFor(
+      relay,
+      manualWattage: manualWattage,
+    );
+  }
+
   Future<void> flush() => _writeQueue;
 
   Future<void> _serialize(Future<void> Function() action) {

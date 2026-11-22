@@ -8,11 +8,14 @@ Future<Database> openPowerDatabase() async {
   );
   return openDatabase(
     databasePath,
-    version: 2,
+    version: 3,
     onCreate: createPowerHistorySchema,
     onUpgrade: (database, oldVersion, newVersion) async {
       if (oldVersion < 2) {
         await createNilmSchema(database);
+      }
+      if (oldVersion < 3) {
+        await createAlertSchema(database);
       }
     },
   );
@@ -47,6 +50,7 @@ Future<void> createPowerHistorySchema(
     'CREATE INDEX power_samples_timestamp_idx ON power_samples(timestamp_ms)',
   );
   await createNilmSchema(database);
+  await createAlertSchema(database);
 }
 
 Future<void> createNilmSchema(DatabaseExecutor database) async {
@@ -82,4 +86,34 @@ Future<void> createNilmSchema(DatabaseExecutor database) async {
     'CREATE INDEX nilm_learned_samples_relay_idx '
     'ON nilm_learned_samples(relay, id)',
   );
+}
+
+Future<void> createAlertSchema(DatabaseExecutor database) async {
+  await database.execute('''
+    CREATE TABLE alert_events (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      type TEXT NOT NULL,
+      title TEXT NOT NULL,
+      message TEXT NOT NULL,
+      occurred_at_ms INTEGER NOT NULL,
+      acknowledged_at_ms INTEGER
+    )
+  ''');
+  await database.execute(
+    'CREATE INDEX alert_events_created_idx ON alert_events(occurred_at_ms DESC)',
+  );
+  await database.execute('''
+    CREATE TABLE alert_state (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL
+    )
+  ''');
+  await database.execute('''
+    CREATE TABLE alert_relay_state (
+      relay INTEGER PRIMARY KEY,
+      is_on INTEGER NOT NULL,
+      on_since_ms INTEGER,
+      heavy_alerted INTEGER NOT NULL DEFAULT 0
+    )
+  ''');
 }

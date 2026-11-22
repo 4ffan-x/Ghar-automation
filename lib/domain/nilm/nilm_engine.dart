@@ -278,6 +278,14 @@ class NilmEngine {
     _manualWattages[relay] = wattage;
   }
 
+  double? effectiveWattageFor(int relay, {double? manualWattage}) {
+    if (manualWattage != null &&
+        (!manualWattage.isFinite || manualWattage < 0)) {
+      throw ArgumentError.value(manualWattage, 'manualWattage');
+    }
+    return manualWattage ?? _profiles[relay]?.medianWatts;
+  }
+
   NilmInsightSnapshot createSnapshot({
     required DateTime now,
     required double measuredTotalKwh,

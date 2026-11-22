@@ -14,6 +14,8 @@ class SettingsRepository {
   static const _useTlsKey = 'mqtt.useTls';
   static const _topicPrefixKey = 'mqtt.topicPrefix';
   static const _energyTariffKey = 'energy.tariffPerKwh';
+  static const _heavyUseDurationMinutesKey = 'alerts.heavyUseDurationMinutes';
+  static const _powerLimitWattsKey = 'alerts.powerLimitWatts';
 
   MqttSettings load() {
     return MqttSettings(
@@ -46,5 +48,29 @@ class SettingsRepository {
       );
     }
     await _preferences.setDouble(_energyTariffKey, tariff);
+  }
+
+  int loadHeavyUseDurationMinutes() =>
+      _preferences.getInt(_heavyUseDurationMinutesKey) ?? 180;
+
+  Future<void> saveHeavyUseDurationMinutes(int minutes) async {
+    if (minutes < 1 || minutes > 10080) {
+      throw ArgumentError.value(
+        minutes,
+        'minutes',
+        'Must be between 1 minute and 7 days.',
+      );
+    }
+    await _preferences.setInt(_heavyUseDurationMinutesKey, minutes);
+  }
+
+  double loadPowerLimitWatts() =>
+      _preferences.getDouble(_powerLimitWattsKey) ?? 0;
+
+  Future<void> savePowerLimitWatts(double watts) async {
+    if (!watts.isFinite || watts < 0) {
+      throw ArgumentError.value(watts, 'watts', 'Must be finite and >= 0.');
+    }
+    await _preferences.setDouble(_powerLimitWattsKey, watts);
   }
 }

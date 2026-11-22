@@ -40,6 +40,15 @@ abstract final class AppConstants {
   static const energyTariffTitle = 'Energy tariff';
   static const energyTariffLabel = 'Price per unit (Rs/kWh)';
   static const energyTariffSaveLabel = 'Save tariff';
+  static const alertsTitle = 'Safety alerts';
+  static const heavyUseDurationLabel = 'Heavy-use duration (minutes)';
+  static const powerLimitLabel = 'High-power limit (watts)';
+  static const alertSettingsSaveLabel = 'Save alert settings';
+  static const enableBackgroundAlertsLabel = 'Enable background monitoring';
+  static const stopBackgroundAlertsLabel = 'Stop background monitoring';
+  static const fullScreenAccessLabel = 'Set up full-screen gas alerts';
+  static const batteryAccessLabel = 'Allow background activity';
+  static const alertsHistoryLabel = 'Open alert history';
   static const monitorWaitingForPower = 'Waiting for power readings';
   static const monitorChartTitle = 'Power history · last 30 minutes';
   static const monitorNoHistory = 'No saved power samples yet';
