@@ -6,12 +6,14 @@ class Appliance {
     required this.name,
     required this.iconKey,
     required this.protected,
+    this.manualWattage,
   });
 
   final int relay;
   final String name;
   final String iconKey;
   final bool protected;
+  final double? manualWattage;
 
   IconData get icon => switch (iconKey) {
     'light' => Icons.lightbulb_outline,
@@ -22,12 +24,21 @@ class Appliance {
     _ => Icons.power_settings_new,
   };
 
-  Appliance copyWith({String? name, String? iconKey, bool? protected}) {
+  Appliance copyWith({
+    String? name,
+    String? iconKey,
+    bool? protected,
+    double? manualWattage,
+    bool clearManualWattage = false,
+  }) {
     return Appliance(
       relay: relay,
       name: name ?? this.name,
       iconKey: iconKey ?? this.iconKey,
       protected: protected ?? this.protected,
+      manualWattage: clearManualWattage
+          ? null
+          : manualWattage ?? this.manualWattage,
     );
   }
 

@@ -1,7 +1,8 @@
 # Ghar
 
 Ghar is an Android Flutter app for local smart-home monitoring and control. This
-document covers Phase 1: MQTT broker setup and testing without the ESP32.
+document includes MQTT setup plus simulator guidance for the Monitor and NILM
+Insights features.
 
 ## Run the Android app
 
@@ -248,6 +249,74 @@ and this month's energy, multiplied by the saved tariff. Publish another
 reading with a higher `kwh` value after 10 seconds to add another saved chart
 sample. The estimates use a single per-kWh rate; utility slabs, taxes, and
 fixed charges are not included.
+
+## Test Phase 4 NILM Insights
+
+The NILM learner runs locally in the app. It uses power readings and confirmed
+relay-state changes; tapping a switch alone is not treated as an event. Start
+Mosquitto and the simulator as described above, connect the app, and use
+**Control**:
+
+1. Leave a relay **OFF** and wait at least 8 seconds so the app has a stable
+   baseline.
+2. Turn that relay **ON** and wait at least 10 seconds for the simulator's
+   confirmed state and settled power readings. Avoid changing another relay
+   around the same time.
+3. Optionally turn the relay **OFF**, then wait another 10 seconds. Each clean
+   ON or OFF transition is a separate learning opportunity.
+4. Open **Insights**. The typical wattage should appear after a clean event,
+   along with its sample count/confidence. Energy is estimated from wattage
+   times the duration the confirmed relay has been ON. No samples means the
+   app shows **Not learned yet** rather than inventing a wattage.
+5. To test an override, select **Set wattage override**, enter a known value
+   (for example `2000` for the simulator's geyser relay), and save. The manual
+   value takes priority over future learned values. Clear it from the same
+   dialog to return to the learned estimate.
+6. To test a rejected/confounded event, change another relay within 8 seconds
+   before or after the first relay transition. The event should not add a
+   wattage sample; the reason is written to the app debug log.
+
+For the cycling-load check, stop the default simulator and restart it with:
+
+```powershell
+C:\ghar-simulator-venv\Scripts\python.exe tools\esp32_simulator.py --host 127.0.0.1 --variable-fridge
+```
+
+This option adds an independent 150 W load that cycles roughly every 15
+seconds; it is not controlled by a relay. Insights should therefore leave the
+unexplained meter energy in **Other / unknown** rather than falsely assigning
+it to a relay. If an actual appliance is a fridge, set its icon to **Fridge**
+in **Control**; protected and fridge-like appliances are explicitly marked
+low confidence because their load can vary without a relay event.
+
+### NILM in simple terms (viva explanation)
+
+The app does not have a separate meter on each appliance. When the ESP32
+confirms a relay change, the app takes the median total power from 6 to 1
+seconds before the change, then compares it with the median from 3 to 8
+seconds after the change (after startup spikes have settled). The difference
+is treated as that appliance's wattage. A noisy baseline, a very small change,
+or another relay changing nearby makes the app reject that sample. Over time,
+it keeps a median of recent accepted wattage samples and reports confidence
+from the number and consistency of samples.
+
+For today's use, the estimate is **wattage × confirmed ON time ÷ 1000** to get
+kWh. The app compares the sum with the meter's measured energy. The remaining
+positive energy is shown as **Other / unknown**; if appliance estimates exceed
+the meter, the app shows that mismatch instead of hiding it. This is an
+estimate, not per-appliance measurement, and independently cycling loads,
+manual switching, and simultaneous appliance changes can reduce accuracy.
+
+Run the deterministic synthetic-data tests without a phone or broker:
+
+```powershell
+flutter test test\nilm_engine_test.dart test\nilm_repository_test.dart
+```
+
+Confirmed events are saved locally and replayed after an app restart. If a
+relay changes while the app or broker is disconnected, the retained state can
+restore its current ON/OFF status, but the exact time of the unseen change is
+unknown; energy for that boundary is therefore approximate.
 
 ## MQTT package
 

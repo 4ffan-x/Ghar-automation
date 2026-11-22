@@ -11,6 +11,8 @@ import 'data/appliance_providers.dart';
 import 'data/repositories/appliance_repository.dart';
 import 'data/db.dart';
 import 'data/monitor_providers.dart';
+import 'data/nilm_providers.dart';
+import 'data/repositories/nilm_repository.dart';
 import 'data/repositories/power_history_repository.dart';
 import 'data/repositories/settings_repository.dart';
 
@@ -21,6 +23,8 @@ Future<void> main() async {
   final applianceRepository = ApplianceRepository(preferences);
   final powerDatabase = await openPowerDatabase();
   final powerHistoryRepository = PowerHistoryRepository(powerDatabase);
+  final nilmRepository = NilmRepository(powerDatabase, applianceRepository);
+  await nilmRepository.initialize();
   final settings = settingsRepository.load();
   final mqttService = MqttService(
     settingsRepository: settingsRepository,
@@ -36,6 +40,7 @@ Future<void> main() async {
         powerHistoryRepositoryProvider.overrideWithValue(
           powerHistoryRepository,
         ),
+        nilmRepositoryProvider.overrideWithValue(nilmRepository),
       ],
       child: const GharApp(),
     ),

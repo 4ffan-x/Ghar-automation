@@ -6,6 +6,8 @@ import 'package:material_ui/material_ui.dart';
 import 'core/app_constants.dart';
 import 'data/monitor_providers.dart';
 import 'data/mqtt_providers.dart';
+import 'data/nilm_providers.dart';
+import 'data/repositories/nilm_repository.dart';
 import 'data/repositories/power_history_repository.dart';
 import 'domain/models/mqtt_readings.dart';
 import 'data/mqtt_status_chip.dart';
@@ -20,10 +22,20 @@ class GharApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final historyRepository = ref.watch(powerHistoryRepositoryProvider);
+    final nilmRepository = ref.watch(nilmRepositoryProvider);
     ref.listen(mqttPowerProvider, (previous, next) {
       next.whenData((reading) {
         if (reading != null) {
-          unawaited(_savePowerReading(ref, historyRepository, reading));
+          unawaited(
+            _savePowerReading(ref, historyRepository, nilmRepository, reading),
+          );
+        }
+      });
+    });
+    ref.listen(mqttRelayStatesProvider, (previous, next) {
+      next.whenData((states) {
+        if (states.isNotEmpty) {
+          unawaited(_saveRelayStates(ref, nilmRepository, states));
         }
       });
     });
@@ -40,6 +52,7 @@ class GharApp extends ConsumerWidget {
   Future<void> _savePowerReading(
     WidgetRef ref,
     PowerHistoryRepository repository,
+    NilmRepository nilmRepository,
     PowerReading reading,
   ) async {
     try {
@@ -50,6 +63,25 @@ class GharApp extends ConsumerWidget {
       ref.invalidate(energyTotalsProvider);
     } on Exception catch (error) {
       debugPrint('Could not save incoming power reading: $error');
+    }
+    try {
+      await nilmRepository.recordPowerReading(reading);
+      ref.invalidate(nilmInsightsProvider);
+    } on Exception catch (error) {
+      debugPrint('Could not process NILM power reading: $error');
+    }
+  }
+
+  Future<void> _saveRelayStates(
+    WidgetRef ref,
+    NilmRepository repository,
+    Map<int, RelayState> states,
+  ) async {
+    try {
+      await repository.recordConfirmedRelayStates(states);
+      ref.invalidate(nilmInsightsProvider);
+    } on Exception catch (error) {
+      debugPrint('Could not process confirmed relay states for NILM: $error');
     }
   }
 

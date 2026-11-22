@@ -21,6 +21,7 @@ class ApplianceRepository {
             _preferences.getString(_key(relay, 'icon')) ??
             defaultAppliance.iconKey,
         protected: _preferences.getBool(_key(relay, 'protected')) ?? false,
+        manualWattage: _preferences.getDouble(_key(relay, 'manualWattage')),
       );
     });
   }
@@ -31,6 +32,15 @@ class ApplianceRepository {
         appliance.relay,
         'relay',
         'Must be between 1 and 6.',
+      );
+    }
+    final manualWattage = appliance.manualWattage;
+    if (manualWattage != null &&
+        (!manualWattage.isFinite || manualWattage < 0)) {
+      throw ArgumentError.value(
+        manualWattage,
+        'manualWattage',
+        'Must be a finite value >= 0.',
       );
     }
 
@@ -46,6 +56,12 @@ class ApplianceRepository {
       _key(appliance.relay, 'protected'),
       appliance.protected,
     );
+    final manualWattageKey = _key(appliance.relay, 'manualWattage');
+    if (manualWattage == null) {
+      await _preferences.remove(manualWattageKey);
+    } else {
+      await _preferences.setDouble(manualWattageKey, manualWattage);
+    }
   }
 
   static String _key(int relay, String property) =>

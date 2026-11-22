@@ -10,12 +10,15 @@ import 'package:ghar_app/data/db.dart';
 import 'package:ghar_app/data/monitor_providers.dart';
 import 'package:ghar_app/data/mqtt_providers.dart';
 import 'package:ghar_app/data/mqtt_service.dart';
+import 'package:ghar_app/data/nilm_providers.dart';
 import 'package:ghar_app/data/repositories/appliance_repository.dart';
+import 'package:ghar_app/data/repositories/nilm_repository.dart';
 import 'package:ghar_app/data/repositories/power_history_repository.dart';
 import 'package:ghar_app/data/repositories/settings_repository.dart';
 import 'package:ghar_app/domain/models/energy_totals.dart';
 import 'package:ghar_app/domain/models/mqtt_readings.dart';
 import 'package:ghar_app/features/monitor/monitor_screen.dart';
+import 'package:ghar_app/features/insights/insights_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
@@ -31,12 +34,25 @@ class _RecordingMqttService extends MqttService {
   }
 }
 
+class _NoopNilmRepository extends NilmRepository {
+  _NoopNilmRepository(super.database, super.applianceRepository);
+
+  @override
+  Future<void> recordPowerReading(PowerReading reading) async {}
+
+  @override
+  Future<void> recordConfirmedRelayStates(
+    Map<int, RelayState> relayStates,
+  ) async {}
+}
+
 void main() {
   late MqttService mqttService;
   late ApplianceRepository applianceRepository;
   late SettingsRepository settingsRepository;
   late Database powerDatabase;
   late PowerHistoryRepository powerHistoryRepository;
+  late NilmRepository nilmRepository;
 
   setUp(() async {
     SharedPreferences.setMockInitialValues({});
@@ -51,11 +67,14 @@ void main() {
       ),
     );
     powerHistoryRepository = PowerHistoryRepository(powerDatabase);
+    nilmRepository = _NoopNilmRepository(powerDatabase, applianceRepository);
+    await nilmRepository.initialize();
     mqttService = MqttService(settingsRepository: settingsRepository);
   });
 
   tearDown(() async {
     await mqttService.dispose();
+    await nilmRepository.flush();
     await powerDatabase.close();
   });
 
@@ -66,15 +85,14 @@ void main() {
     applianceRepositoryProvider.overrideWithValue(applianceRepository),
     settingsRepositoryProvider.overrideWithValue(settingsRepository),
     powerHistoryRepositoryProvider.overrideWithValue(powerHistoryRepository),
+    nilmRepositoryProvider.overrideWithValue(nilmRepository),
     recentPowerHistoryProvider.overrideWith((ref) async => []),
     energyTotalsProvider.overrideWith(
       (ref) async => const EnergyTotals(todayKwh: 0, monthKwh: 0),
     ),
   ];
 
-  testWidgets('shows all four tabs and opens their placeholder screens', (
-    tester,
-  ) async {
+  testWidgets('shows all four tabs and opens Insights', (tester) async {
     await tester.pumpWidget(
       ProviderScope(
         overrides: commonOverrides(mqttService),
@@ -94,7 +112,7 @@ void main() {
 
     await tester.tap(find.byIcon(Icons.insights_outlined));
     await tester.pumpAndSettle();
-    expect(find.text('Insights are coming in a later phase.'), findsOneWidget);
+    expect(find.text('Appliance energy estimates · today'), findsOneWidget);
 
     await tester.tap(find.byIcon(Icons.settings_outlined));
     await tester.pumpAndSettle();
@@ -324,5 +342,51 @@ void main() {
     await tester.tap(find.text('Save tariff'));
     await tester.pumpAndSettle();
     expect(settingsRepository.loadEnergyTariff(), 8.5);
+  });
+
+  testWidgets('Insights manual wattage override is saved locally', (
+    tester,
+  ) async {
+    final snapshot = await nilmRepository.createSnapshot(
+      measuredTotalKwh: 0.2,
+      now: DateTime(2026, 11, 22, 12),
+    );
+    final appliances = await applianceRepository.loadAll();
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          applianceRepositoryProvider.overrideWithValue(applianceRepository),
+          appliancesProvider.overrideWith((ref) async => appliances),
+          nilmInsightsProvider.overrideWith((ref) async => snapshot),
+        ],
+        child: const MaterialApp(home: Scaffold(body: InsightsScreen())),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final overrideButton = find.byKey(const Key('nilm-override-1'));
+    await tester.scrollUntilVisible(
+      overrideButton,
+      250,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.ensureVisible(overrideButton);
+    await tester.tap(overrideButton);
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const Key('nilm-manual-wattage-field')),
+      '120',
+    );
+    await tester.tap(find.widgetWithText(FilledButton, 'Save'));
+    await tester.pumpAndSettle();
+
+    final saved = (await applianceRepository.loadAll()).first;
+    expect(saved.manualWattage, 120);
+    await tester.scrollUntilVisible(
+      find.text('Other / unknown'),
+      250,
+      scrollable: find.byType(Scrollable).first,
+    );
+    expect(find.text('0.200 kWh today'), findsOneWidget);
   });
 }

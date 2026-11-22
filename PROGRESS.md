@@ -44,8 +44,17 @@
 - Verified: `dart format lib test`, `flutter analyze`, `flutter test --reporter expanded` (15 tests), `flutter build apk --debug`, and `git diff --check` pass. Android debug APK: `build/app/outputs/flutter-apk/app-debug.apk`.
 - Live Mosquitto and physical-phone testing remain outstanding.
 
+## Phase 4 — NILM engine and Insights
+
+- Added a pure-Dart NILM engine with no Flutter, MQTT, or database imports. It retains a rolling 30-second power buffer and evaluates relay wattage only after a confirmed state transition.
+- Learning compares median power in `t - 6s` to `t - 1s` with `t + 3s` to `t + 8s`. It rejects unstable baselines (standard deviation above 15 W), steps below 8 W or in the wrong direction, insufficient window samples, transitions confounded by another nearby relay change, and large outliers. Accepted values use the median of the latest seven samples; sample count and spread inform confidence.
+- Added SQLite persistence for power-window samples, confirmed relay events, and learned wattage samples, including a database v1-to-v2 migration. Confirmed relay intervals and learned profiles are restored after app restarts. Manual wattage overrides are saved locally with existing appliance preferences and take priority over learned values.
+- Replaced the Insights placeholder with daily wattage/confidence, estimated kWh and measured-total shares per appliance, a manual-override editor, and an **Other / unknown** residual. If appliance estimates exceed the meter total, the mismatch is shown instead of hidden. Protected and fridge-like loads are called out as low confidence.
+- Updated `README.md` with simulator learning steps, `--variable-fridge` testing, synthetic test commands, and a simple viva explanation. No package additions; the project continues using `sqflite` 2.4.6 and `shared_preferences` 2.5.6. MQTT topic strings and `MqttService` behavior were not changed.
+- Verified: `dart format lib test`, `flutter analyze`, `flutter test --reporter expanded` (25 tests), `flutter build apk --debug`, and `git diff --check` pass. APK: `build/app/outputs/flutter-apk/app-debug.apk`.
+- Live broker and physical-phone testing remain pending. A relay change missed while the broker/app is disconnected has no exact timestamp; the retained state restores the current state, but energy attribution around that unseen transition is approximate. The learner is an estimate, not individual appliance measurement.
+
 ## Not started
 
-- Phase 4: NILM engine and Insights screen.
 - Phase 5: alerts.
 - Optional Phase 6: timers and hybrid broker.
